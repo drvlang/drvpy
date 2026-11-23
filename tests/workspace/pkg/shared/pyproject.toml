@@ -1,0 +1,8 @@
+[project]
+name = "shared"
+version = "0.1.0"
+description = "Shared test package"
+requires-python = ">=3.12"
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"

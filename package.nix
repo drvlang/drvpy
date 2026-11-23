@@ -1,22 +1,26 @@
-{ uv2nix, pyproject-nix, pyproject-build-systems, ... }:
-pkgs: { src, python ? pkgs.python3, dependencies ? null }:
+{ drvkit, self, test ? false }:
+pkgs: { src, memberPath ? ".", python ? pkgs.python3, dependencies ? null, testArgs ? [] }:
 let
-  workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = src; };
-  pythonSet = (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope
-    (pkgs.lib.composeManyExtensions [
-      pyproject-build-systems.overlays.wheel
-      (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; })
-    ]);
-  runtime = pkgs.lib.mapAttrs (_: _: []) workspace.deps.default;
-  env = pythonSet.mkVirtualEnv "drvpy-env" (if dependencies == null then runtime else dependencies);
-  verifiedLock = pkgs.runCommand "drvpy-check-uv-lock" {} ''
-    cp -r ${src} project
-    chmod -R u+w project
-    cd project
-    export HOME="$TMPDIR" UV_PYTHON_DOWNLOADS=never
-    ${pkgs.uv}/bin/uv lock --check --offline --python ${python.interpreter}
-    touch "$out"
-  '';
+  inherit (pkgs) lib;
+  dynamic = import (drvkit + "/dynamic.nix") { inherit pkgs; };
+  json = value: "builtins.fromJSON ${lib.strings.escapeNixString (builtins.toJSON value)}";
+  pythonAttr = if builtins.isString python then python else python.pythonAttr;
 in
-assert pkgs.lib.assertMsg (builtins.pathExists (src + "/uv.lock")) "drvpy requires a checked-in uv.lock";
-env.overrideAttrs (_: { inherit verifiedLock; })
+assert lib.assertMsg (builtins.isString python || pkgs.${pythonAttr}.drvPath == python.drvPath)
+  "drvpy needs a Python interpreter from its pinned nixpkgs for recursive planning";
+dynamic {
+  name = if test then "drvpy-test" else "drvpy-package";
+  expression = ''
+    let
+      inputs = ${import (drvkit + "/flake-inputs.nix") self};
+      pkgs = inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system};
+    in import ${./build.nix} inputs pkgs {
+      src = builtins.storePath "${src}";
+      memberPath = ${lib.strings.escapeNixString memberPath};
+      python = pkgs.${lib.strings.escapeNixString pythonAttr};
+      test = ${lib.boolToString test};
+      testArgs = ${json testArgs};
+      dependencies = ${json dependencies};
+    }
+  '';
+}

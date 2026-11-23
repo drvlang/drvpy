@@ -1,0 +1,37 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[manifest]
+members = [
+    "api",
+    "shared",
+    "worker",
+]
+
+[[package]]
+name = "api"
+version = "0.1.0"
+source = { editable = "apps/api" }
+dependencies = [
+    { name = "shared" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "shared", editable = "pkg/shared" }]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+source = { editable = "pkg/shared" }
+
+[[package]]
+name = "worker"
+version = "0.1.0"
+source = { editable = "apps/worker" }
+dependencies = [
+    { name = "shared" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "shared", editable = "pkg/shared" }]
