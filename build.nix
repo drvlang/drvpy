@@ -22,6 +22,12 @@ let
     stdenv = pkgs.stdenvAdapters.addAttrsToDerivation { __contentAddressed = true; } pkgs.stdenv;
   }).overrideScope
     (lib.composeManyExtensions [
+      (_: prev: { hooks = prev.hooks.override {
+        # The generated install script must also be restorable on a runner
+        # with no build slots. Nixpkgs' replaceVars disables substitution.
+        replaceVars = script: replacements:
+          (pkgs.replaceVars script replacements).overrideAttrs { allowSubstitutes = true; };
+      }; })
       pyproject-build-systems.overlays.wheel
       (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; dependencies = depSpec; })
       (_: prev: lib.mapAttrs (_: pkg:
