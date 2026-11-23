@@ -2,7 +2,7 @@
 let
   src = (import ./source.nix).outPath;
   env = self.lib.mkPackage { inherit system src; dependencies.flask = [ "tests" ]; };
-in pkgs.runCommand "drvpy-flask-tests" {} ''
+in pkgs.runCommand "drvpy-flask-tests" { __contentAddressed = true; } ''
   set -o pipefail
   cp -r ${src} flask
   chmod -R u+w flask

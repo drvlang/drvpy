@@ -16,13 +16,17 @@ let
     let groups = workspace.deps.all.${name};
         testGroups = builtins.filter (g: builtins.elem g groups) [ "test" "tests" ];
     in if !test then [] else if testGroups != [] then testGroups else lib.optional (builtins.elem "dev" groups) "dev");
-  pythonSet = (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope
+  # pyproject.nix uses this stdenv for every locked package and virtualenv.
+  pythonSet = (pkgs.callPackage pyproject-nix.build.packages {
+    inherit python;
+    stdenv = pkgs.stdenvAdapters.addAttrsToDerivation { __contentAddressed = true; } pkgs.stdenv;
+  }).overrideScope
     (lib.composeManyExtensions [
       pyproject-build-systems.overlays.wheel
       (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; dependencies = depSpec; })
     ]);
   env = pythonSet.mkVirtualEnv "drvpy-env" depSpec;
-  verifiedLock = pkgs.runCommand "drvpy-check-uv-lock" {} ''
+  verifiedLock = pkgs.runCommand "drvpy-check-uv-lock" { __contentAddressed = true; } ''
     cp -r ${root} project
     chmod -R u+w project
     cd project
@@ -44,7 +48,7 @@ let
   });
 in
 assert lib.assertMsg (builtins.pathExists (root + "/uv.lock")) "drvpy requires a checked-in uv.lock";
-if !test then checkedEnv else pkgs.runCommand "drvpy-tests" {} ''
+if !test then checkedEnv else pkgs.runCommand "drvpy-tests" { __contentAddressed = true; } ''
   cp -r ${src} project
   chmod -R u+w project
   cd project/${lib.escapeShellArg memberPath}

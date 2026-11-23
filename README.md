@@ -1,6 +1,6 @@
 # drvpy
 
-Build and test Python applications directly from a version 1 `uv.lock`. A dynamic Nix derivation resolves the locked packages, prefers compatible wheels and produces an environment with the project's console scripts. Updating dependencies only requires updating the uv lockfile. An offline `uv lock --check` catches stale manifests.
+Build and test Python applications directly from a version 1 `uv.lock`. A dynamic Nix derivation resolves the locked packages, prefers compatible wheels and produces an environment with the project's console scripts. Packages and the virtual environment are content-addressed, so identical outputs keep the same store path after a rebuild. An offline `uv lock --check` catches stale manifests.
 
 ```sh
 nix run github:drvlang/drvpy -- build -C ./app
