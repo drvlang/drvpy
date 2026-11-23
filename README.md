@@ -14,16 +14,28 @@ The build includes runtime dependencies. Tests also look for a locked group or e
 
 ## Flakes and workspaces
 
-A single project can return `drvpy.lib.mkFlake { src = ./.; }` from its flake outputs. For a uv workspace, give each command the directory containing its `pyproject.toml`. Both commands can depend on shared workspace packages and use the root lock.
+For one Python project, use `drvpy.lib.mkFlake` with a source selection covering its manifests, Python packages, tests and packaging inputs. For a uv workspace, give each command the directory containing its `pyproject.toml`. Both commands can depend on shared workspace packages and use the root lock.
 
 ```nix
 outputs = { drvpy, ... }: drvpy.lib.mkMonorepoFlake {
-  src = ./.;
+  srcForTarget = { target, ... }: let member = ./. + "/${target}";
+  in drvpy.lib.projectSource {
+    root = ./.;
+    files = [
+      ./pyproject.toml ./uv.lock ./apps/api/pyproject.toml
+      ./apps/worker/pyproject.toml ./pkg/shared/pyproject.toml ./pkg/shared/shared.py
+      (member + "/src") (member + "/tests")
+    ];
+  };
   commands = { api = "apps/api"; worker = "apps/worker"; };
 };
 ```
 
-Use `nix build .#api`, `nix run .#worker` and `nix flake check`. For the same names on the CLI, put `{"commands":{"api":"apps/api","worker":"apps/worker"}}` in `drvlang.json` and run `drvpy test api`. Nix callers can select a pinned nixpkgs interpreter with `python = pkgs.python313;`. [Working workspace](tests/workspace)
+The example includes every workspace manifest so uv can verify the root lock. The selected member and its shared package supply the implementation files. Include additional readmes or data files used by your build backend.
+
+Use `nix build .#api`, `nix run .#worker` and `nix flake check`. For CLI target names, put `{"commands":{"api":"apps/api","worker":"apps/worker"}}` in `drvlang.json` and run `drvpy test api`. Nix callers can select a pinned nixpkgs interpreter with `python = pkgs.python313;`. [Working workspace](tests/workspace)
+
+Read that same map in the flake with `commands = (builtins.fromJSON (builtins.readFile ./drvlang.json)).commands;`.
 
 ## Benchmark
 

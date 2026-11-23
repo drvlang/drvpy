@@ -56,13 +56,21 @@ if !test then checkedEnv else pkgs.runCommand "drvpy-tests" {} ''
     if [[ ''${#args[@]} != 0 ]]; then
       ${checkedEnv}/bin/python -m unittest discover "''${args[@]}"
     else
+      tested=false
       for member in ${lib.escapeShellArgs testRoots}; do
-        (
+        if (
           cd "$member"
           if [[ -d tests ]]; then args=(-s tests); fi
           ${checkedEnv}/bin/python -m unittest discover "''${args[@]}"
-        )
+        ); then
+          tested=true
+        else
+          status=$?
+          # unittest returns 5 when a member has no tests to discover.
+          if [[ $status != 5 ]]; then exit "$status"; fi
+        fi
       done
+      if [[ $tested == false ]]; then exit 5; fi
     fi
   fi
   mkdir "$out"
