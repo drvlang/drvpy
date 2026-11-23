@@ -1,5 +1,5 @@
 { uv2nix, pyproject-nix, pyproject-build-systems, ... }:
-pkgs: { src, memberPath, python, dependencies, test, testArgs }:
+pkgs: { src, memberPath, python, dependencies, test }:
 let
   inherit (pkgs) lib;
   project = src + "/${memberPath}";
@@ -24,6 +24,16 @@ let
     (lib.composeManyExtensions [
       pyproject-build-systems.overlays.wheel
       (workspace.mkPyprojectOverlay { sourcePreference = "wheel"; dependencies = depSpec; })
+      (_: prev: lib.mapAttrs (_: pkg:
+        # uv2nix points nested members at a subdirectory of the root source.
+        # Give each wheel the same directory under its own content address.
+        if pkg ? src && lib.hasPrefix "${src}/" (toString pkg.src) then
+          pkg.overrideAttrs { src = builtins.path {
+            path = pkg.src;
+            name = lib.strings.sanitizeDerivationName (baseNameOf pkg.src);
+          }; }
+        else pkg
+      ) (builtins.intersectAttrs workspace.deps.default prev))
     ]);
   env = pythonSet.mkVirtualEnv "drvpy-env" depSpec;
   verifiedLock = pkgs.runCommand "drvpy-check-uv-lock" { __contentAddressed = true; } ''
@@ -44,38 +54,12 @@ let
     postFixup = (old.postFixup or "") + ''
       mkdir -p "$out/nix-support"
       ln -s ${lib.escapeShellArg "../bin/${script}"} "$out/nix-support/drvpy-run"
+    '' + lib.optionalString (testRoots != [ "." ]) ''
+      for member in ${lib.escapeShellArgs testRoots}; do
+        printf '%s\0' "$member"
+      done > "$out/nix-support/drvpy-test-roots"
     '';
   });
 in
 assert lib.assertMsg (builtins.pathExists (root + "/uv.lock")) "drvpy requires a checked-in uv.lock";
-if !test then checkedEnv else pkgs.runCommand "drvpy-tests" { __contentAddressed = true; } ''
-  cp -r ${src} project
-  chmod -R u+w project
-  cd project/${lib.escapeShellArg memberPath}
-  export HOME="$TMPDIR"
-  if [[ -x ${checkedEnv}/bin/pytest ]]; then
-    ${checkedEnv}/bin/python -m pytest ${lib.escapeShellArgs testArgs}
-  else
-    args=(${lib.escapeShellArgs testArgs})
-    if [[ ''${#args[@]} != 0 ]]; then
-      ${checkedEnv}/bin/python -m unittest discover "''${args[@]}"
-    else
-      tested=false
-      for member in ${lib.escapeShellArgs testRoots}; do
-        if (
-          cd "$member"
-          if [[ -d tests ]]; then args=(-s tests); fi
-          ${checkedEnv}/bin/python -m unittest discover "''${args[@]}"
-        ); then
-          tested=true
-        else
-          status=$?
-          # unittest returns 5 when a member has no tests to discover.
-          if [[ $status != 5 ]]; then exit "$status"; fi
-        fi
-      done
-      if [[ $tested == false ]]; then exit 5; fi
-    fi
-  fi
-  mkdir "$out"
-''
+checkedEnv

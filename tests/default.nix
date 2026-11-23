@@ -18,6 +18,9 @@ let
   workspace = self.lib.mkMonorepoFlake { inherit commands srcForTarget; };
   apps = workspace.apps.${system};
   api = workspace.packages.${system}.api;
+  apiArgs = { inherit system commands srcForTarget; target = "api"; };
+  explicitDeps = apiArgs // { dependencies.api = []; };
+  shard = self.lib.mkTest (apiArgs // { testArgs = [ "-p" "test_command.py" ]; });
   editedApi = edit: self.lib.mkPackage {
     inherit system commands;
     target = "api";
@@ -30,7 +33,10 @@ let
   };
   manifestEdit = editedApi ''echo "# edited manifest" >> apps/api/pyproject.toml'';
   programEdit = editedApi ''sed -i 's/"api"/"edited"/' apps/api/src/api.py'';
-in pkgs.runCommand "check-workspace" {
+in
+assert shard.planner.drvPath == workspace.checks.${system}.api.planner.drvPath;
+assert (self.lib.mkPackage explicitDeps).planner.drvPath == (self.lib.mkTest explicitDeps).planner.drvPath;
+pkgs.runCommand "check-workspace" {
   __contentAddressed = true;
   memberTests = builtins.attrValues workspace.checks.${system};
   workspaceTest = self.lib.mkTest {

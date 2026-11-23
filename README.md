@@ -12,6 +12,8 @@ Enable `ca-derivations`, `dynamic-derivations` and `recursive-nix` in Nix and th
 
 The build includes runtime dependencies. Tests also look for a locked group or extra named `test` or `tests`, then `dev`. They run pytest when installed and otherwise use unittest discovery. Use `--options '{"dependencies":{"flask":["tests"]}}'` to choose groups explicitly. Run selects a project's sole console script and otherwise starts Python. Use `--options '{"program":"flask"}'` to choose a script.
 
+In CI, different test selections reuse one environment. With the same explicit dependency groups, the build and tests also share one environment plan. Each nested workspace package builds its wheel from its own directory, so editing an app can reuse its shared dependencies.
+
 ## Flakes and workspaces
 
 For one Python project, use `drvpy.lib.mkFlake` with a source selection covering its manifests, Python packages, tests and packaging inputs. For a uv workspace, give each command the directory containing its `pyproject.toml`. Both commands can depend on shared workspace packages and use the root lock.
