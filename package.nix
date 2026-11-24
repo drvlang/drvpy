@@ -8,11 +8,16 @@ let
   # Explicit dependency groups describe the same environment for build and
   # test. Test arguments only affect the runner once that environment exists.
   testGroups = test && dependencies == null;
+  # Every project and test evaluates the same locked tools. Store their
+  # expression once, preserving references to the pinned flake sources.
+  lockedInputs = (pkgs.writeText "drvpy-locked-inputs.nix" (import (drvkit + "/flake-inputs.nix") {
+    inputs = { inherit (self.inputs) nixpkgs uv2nix pyproject-nix pyproject-build-systems; };
+  })).overrideAttrs { __contentAddressed = true; allowSubstitutes = true; };
   env = dynamic {
     name = if testGroups then "drvpy-test-env" else "drvpy-package";
     expression = ''
       let
-        inputs = ${import (drvkit + "/flake-inputs.nix") self};
+        inputs = import ${lockedInputs};
         pkgs = inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system};
       in import ${./build.nix} inputs pkgs {
         src = builtins.storePath "${src}";

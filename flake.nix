@@ -21,6 +21,11 @@
 
   outputs = { self, nixpkgs, drvkit, ... }@inputs: import drvkit {
     inherit self nixpkgs;
+    toolSource = {
+      root = ./.;
+      files = [ ./build.nix ./package.nix ./test.nix ];
+      benchmarkFiles = [ ./benchmarks/default.nix ./benchmarks/source.nix ];
+    };
     name = "drvpy";
     extraChecks = system: let args = {
       pkgs = nixpkgs.legacyPackages.${system}; inherit self system;
