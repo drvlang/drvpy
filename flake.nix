@@ -3,33 +3,22 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/6b5e5b7a6631f065bf6908986990b37d845f847f";
   inputs.drvkit = { url = "github:drvlang/drvkit"; flake = false; };
 
-  inputs.pyproject-nix = {
-    url = "github:pyproject-nix/pyproject.nix";
-    inputs.nixpkgs.follows = "nixpkgs";
-  };
-  inputs.uv2nix = {
-    url = "github:pyproject-nix/uv2nix";
-    inputs.nixpkgs.follows = "nixpkgs";
-    inputs.pyproject-nix.follows = "pyproject-nix";
-  };
-  inputs.pyproject-build-systems = {
-    url = "github:pyproject-nix/build-system-pkgs";
-    inputs.nixpkgs.follows = "nixpkgs";
-    inputs.pyproject-nix.follows = "pyproject-nix";
-    inputs.uv2nix.follows = "uv2nix";
-  };
-
   outputs = { self, nixpkgs, drvkit, ... }@inputs: import drvkit {
     inherit self nixpkgs;
     toolSource = {
       root = ./.;
-      files = [ ./build.nix ./package.nix ./test.nix ];
+      files = [ ./drvpy.py ./package.nix ./test.nix ];
       benchmarkFiles = [ ./benchmarks/default.nix ./benchmarks/source.nix ];
     };
     name = "drvpy";
-    extraChecks = system: let args = {
-      pkgs = nixpkgs.legacyPackages.${system}; inherit self system;
-    }; in {
+    extraChecks = system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+      args = { inherit pkgs self system; };
+    in {
+      unit-tests = pkgs.runCommand "drvpy-unit-tests" { __contentAddressed = true; } ''
+        ${pkgs.python3}/bin/python3 ${./drvpy.py} self-test
+        mkdir "$out"
+      '';
       benchmark = import ./benchmarks args;
       workspace = import ./tests args;
     };
